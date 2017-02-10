@@ -9,7 +9,7 @@ Creates a .p file with a list of dictionaries that map transliterations to Unico
 To use: Download ORACC's XML sign list (https://github.com/oracc/coredata/tree/master/sign) to the same folder as dictbuilder.py, and run dictbuilder.py.
 
 ### CuneiPy.py
-Does the main transcription.  This is designed to be run from the command line.
+Does the main transcription.  This is designed to be run from the command line.  signs.p must be in the same folder as CuneiPy.py when run.
 
 Usage:
 python3 CuneiPy.py [--file inputfile] [--text text] [--stdin] [--showall] [--outfile file]
