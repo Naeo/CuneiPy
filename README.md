@@ -15,8 +15,12 @@ Usage:
 python3 CuneiPy.py [--file inputfile] [--text text] [--stdin] [--showall] [--outfile file]
 
 --file, -f          Specify a text file containing ATF transliterations to convert to Cuneiform.
+
 --outfile, -o       Specify a destination file to append results to.  If not supplied, results are printed to stdout.
+
 --text, -t          Manually supply text to transliterate as an argument.  If used with -f, text in file is processed first.
+
 --stdin, -s         Read transliteration from stdin.  Mostly useful for piping output from another program through.
+
 --showall, -a       Show all symbols that could be read as the target text.  E.g., "du" will return "du1", "du2", etc.  
                     [Currently a bit buggy]
