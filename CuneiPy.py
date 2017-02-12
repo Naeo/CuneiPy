@@ -6,10 +6,11 @@ Cuneify program, hosted at:
 """
 
 import argparse
+from collections import OrderedDict
 from pprint import pprint
 import pickle
 import re
-from sys import stdin
+from sys import exit
 
 def asciify(string):
     """Takes a string and converts Unicode characters to ASCII,
@@ -48,41 +49,30 @@ def dictmap(row, m):
         new_row += tmp_val + ' '
     return new_row
         
-def dictmap_findall(row, m):
+def dictmap_findall(chars, m):
     """A version of dictmap, but rather than using
     a dictionary, it uses a list of tuples.  This allows
     multiple sign readings to be preserved, and this function
     is only used with the --showall/-a flag due to much
     larger computational overhead.
+    
+    :param chars: list of characters to search for.
+    :param m: mapping to use.  Keys will be ASCII-fied.
     """
-    new_row = ""
-    for i in row:
+    matches = OrderedDict()
+    for C in chars:
+        i = C
+        # clean up the character for comparison
         if len(i) > 1 and i[-1] in "!#*?":
             i = i[:-1]
         i = i.strip()
-        i = i.strip("[]()/\\")
-        # look for unicode first, then ascii, then nocomma, then same order
-        # with case swapped
-        tmp_vals = [[j for j in M if j[0] == i] for M in m]
-        # check for sign names
-        tmp_vals += [[j for j in M if j[1] == i] for M in m]
-        # check swapped case
-        tmp_vals += [[j for j in M if j[0] == i] for M in m]
-        for tmp in tmp_vals:
-            if tmp != []:
-                i = tmp[0][2]
-                break
-        new_row += i + ' '
-    return new_row
-
-def showall(row, m):
-    """Returns all possible characters that could phonetically match each input segment
-    of row.
-    """
-    found = []
-    for i in row:
-        found += [i, sorted(set([tuple(j) for j in m if re.match("{}[0-9x]*$".format(i), asciify(j[0]), re.IGNORECASE)]))]
-    return found
+        i = i.strip("[]()/\\0123456789")
+        i = asciify(i)
+        matches[C] = [j for j in m[0] 
+                      if re.match("^{}[0-9]*$".format(i), asciify(j[0]))
+                     ]
+        matches[C] = sorted(matches[C], key=lambda x: x[0])
+    return matches
 
 if __name__ == "__main__":
     # command line: parse infile arguments.
@@ -94,11 +84,32 @@ if __name__ == "__main__":
                    help="--text [text]. Manually provide text to convert via stdin. (processed after -f)")
     P.add_argument("--stdin", "-s", action="store_true", default=False, 
                    help="Read from stdin.  Will override -f and -t options.  Useful for piping data through.")
+    P.add_argument("--lang", "-l",
+                   help="Supply the three-letter code of a language to only use signs from that language.")
+    P.add_argument("--showall", "-a", action="store_true", default=False, 
+                   help="Show all combinations of characters that could phonetically match the given text.")
     P.add_argument("--outfile", "-o", default="", 
                    help="--outfile [file]. Specify an output file.  Prints to stdout if not specified.")
-    P.add_argument("--allsigns", "-a", action="store_true", default=False, 
-                   help="Show all combinations of characters that could phonetically match the given text.")
+    P.add_argument("--show-langs", action="store_true", default=False,
+                   help="Print supported languages and exit.")
     args = P.parse_args()
+    
+    if args.show_langs == True:
+        print("""Available languages:
+        Hittite  (hit)
+        Akkadian (akk)
+        Sumerian (sux)
+        
+        Leave --lang argument blank to disregard the language of a sign.""")
+        exit()
+    
+    if args.lang is not None and args.lang.lower() not in ["hit", "akk", "sux"]:
+        raise ValueError("--lang {}: invalid language code.  Use --show-langs to see supported languages.")
+    
+    # Load the mappings
+    l = pickle.load(open("signs.p", "rb"))
+    d = [{i[0]:i[1:] for i in j} for j in l]
+    
     # Gather text
     text = ""
     if args.file and args.stdin == False:
@@ -109,15 +120,22 @@ if __name__ == "__main__":
     if args.stdin == True:
         text = stdin.readline().strip()
     
-    l = pickle.load(open("signs.p", "rb"))
-    d = [{i[0]:i[1:] for i in j} for j in l]
+    # Line tokenize and character tokenize the text
     text = [re.split("[\s\-\[\]\\\\/]+", i) for i in text.split('\n')]
-    if args.allsigns == True:
-        text_new = [showall(i, d[0]) for i in text]
+    
+    # Check for --showall/-a
+    if args.showall == True:
+        # Flatten text, so it's no longer split by lines
+        text = [i for j in text for i in j]
+        text_new = dictmap_findall(text, l)
+        # rebind print() to pprint() to make displaying the dictionary nicer.
+        print = pprint
     else:
         text_new = "\n".join(dictmap(i, d) for i in text)
+    
     if args.outfile != "":
-        with open(args.outfile, "a", encoding="utf8") as F:
-            F.write(text_new + '\n')
+        print(text_new, file=open(args.outfile, "a", encoding="utf8"))
+#        with open(args.outfile, "a", encoding="utf8") as F:
+#            F.write(text_new + '\n')
     else:
-        pprint(text_new)
+        print(text_new)
