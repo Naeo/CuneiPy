@@ -5,7 +5,7 @@ Unicode codepoints.  It uses the xml file provided by ORACC,
 and riginally created by Steve Tinney:
     https://github.com/oracc/coredata/blob/master/sign/ogsl-sl.xml
 """
-
+import copy
 import pickle
 from pprint import pprint
 import sys
@@ -22,7 +22,7 @@ def fixer(string):
                     ]
     # comma-second convention
     ascii_chars = ["c,", "c,", "s,", "S,", "t,", "T,", "h,", "H,", "j,", "J,",
-                   "X,", "),", "(,", "0", "1", "2", "3", "4", "5", "6",
+                   "X,", "),", "(,", "0", "1", "2", "3", "4", "5", "6", 
                    "7", "8", "9", "x", "[,", "],", "", "", ",r"
                   ]
     # using epsd notation
@@ -31,53 +31,52 @@ def fixer(string):
     return string
 
 if __name__ == "__main__":
-    f = ET.parse("ogsl-sl.xml")
+    f = ET.parse("prettify.txt")
     root = f.getroot()
     # namespace strings
     xml = "{http://www.w3.org/XML/1998/namespace}"
-    g = "{http://oracc.org/ns/gdl/1.0}"
-    s = "{http://oracc.org/ns/sl/1.0}"
-    xmlns = "{http://oracc.org/ns/sl/1.0}"
-    sign_data = [["value", "form", "character", "language"]]
+    g = "{-}"
+    s = "{-}"
+    xmlns = "{}"
+    sign_data = []
     cur_items = []
     cur_form = ""
     cur_var = ""
-    cur_lang = ""
+    cur_lang = []
     cur_literal = ""
     cur_vals = []
     for i in root.getiterator():
-        if i.tag == g + "w":
+        if i.tag == "{-}w":
             # pull form and lang information from <g:w>
             cur_form = i.get("form")
-            cur_lang = i.get("{}lang".format(xml)) # namespace stuff in XML
-        elif i.tag == s + "utf8":
+            cur_lang += [i.get("{}lang".format(xml))] # namespace stuff in XML
+        elif i.tag == "utf8":
             # pull literal cuneiform from <g:s>, <g:c>
             cur_literal = i.text.strip()
-        elif i.tag in [s + "list", s + "v"]:
+        elif i.tag in ["list", "v"]:
             # pull sign values from <list>, <v>
             cur_vals.append(i.get("n"))
-        elif i.tag in [s + "sign", s + "form"]:
+        elif i.tag in ["sign", "form"]:
             # end of block, update dict and start again
-            sign_data += [[i+cur_var, cur_form, cur_literal, cur_lang] for i in cur_vals]
+            sign_data += [[i+cur_var, cur_form, cur_literal, ",".join(set(cur_lang))] for i in cur_vals]
             cur_form = ""
             cur_var = i.get("var", "")
-            cur_lang = ""
+            cur_lang = []
             cur_literal = ""
             cur_vals = []
-
     # remove signs with no unicode symbol
     sign_data = [i for i in sign_data if i[2] not in [None, "X", ""]]
-    with open("signs.txt", "w", encoding="utf8") as F:
+    sign_data = [["value", "form", "character", "language"]] + sign_data
+    with open("signs.txt", "w") as F:
         for line in sign_data:
-            F.write("\t".join(line) + '\r\n')
-            # F.write("{0:20s}\t{1:20s}\t{2:20s}\t{3:<20s}".format(*line) + '\r\n')
-
-    signs = [sign_data[:], sign_data[:], sign_data[:]]
+            F.write("{0:20s}\t{1:20s}\t{2:20s}\t{3:<20s}".format(*line) + '\n')
+                
+    signs = [copy.deepcopy(sign_data), copy.deepcopy(sign_data), copy.deepcopy(sign_data)]
     for i in range(len(signs[0])):
         # ascii-fy all the characters we can
         signs[1][i][0] = fixer(signs[1][i][0])
         # remove commas where redundant/unnecessary
         for j in "cCtThHjJX()[]":
-            signs[2][i][0] = signs[2][i][0].replace(j+',', j)
-
+            signs[2][i][0] = signs[1][i][0].replace(j+',', j)
+    sys.exit()
     pickle.dump(signs, open("signs.p", "wb"))
